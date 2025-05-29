@@ -1,0 +1,52 @@
+version: "3.9"
+
+services:
+  pgvector:
+    build: ./pgvector
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: ragpass
+      POSTGRES_DB: ragdb
+    volumes:
+      - pgvector_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag -d ragdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  encoder:
+    build: ./encoder
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      pgvector:
+        condition: service_healthy
+    environment:
+      - POSTGRES_HOST=pgvector
+      - POSTGRES_USER=rag
+      - POSTGRES_PASSWORD=ragpass
+      - POSTGRES_DB=ragdb
+
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    command: |
+      bash -c "
+        ollama serve &
+        sleep 10 &&
+        ollama pull gemma:2b &&
+        wait
+      "
+
+volumes:
+  pgvector_data:
+  ollama_data: 
